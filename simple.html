@@ -19,6 +19,11 @@
         var statusElement;
         var statusMessageElement;
 
+        const highlightColor = "4CAF50";
+        var rollbackProps = {};
+        rollbackProps.nodes = [];
+        rollbackProps.links = [];
+
         document.addEventListener('DOMContentLoaded', function () {
             statusElement = document.getElementById('status');
             statusMessageElement = document.getElementById('statusMessage');
@@ -295,6 +300,220 @@
             return linkProps;
         }
 
+        async function createNodeGrid() {
+
+            await createGridNode(1, 1);
+            await createGridNode(1, 2);
+            await createGridNode(2, 1);
+            await createGridNode(2, 2);
+        }
+
+        async function createGridNode(column, row) {
+
+            try {
+                var props = gridNodeProps(column, row);
+                const node = await window.noda.createNode(props);
+                statusSuccess("Created Node Grid: " + node.uuid);
+
+            } catch (error) {
+                statusError("Node create error: " + error);
+            }
+        }
+
+        function gridNodeProps(column, row) {
+            var nodeProps = {};
+
+            nodeProps.uuid = "node_grid_c" + column + "_r" + row;
+            nodeProps.title = "Column " + column + " | Row " + row;
+            nodeProps.color = "4CAF50";
+            nodeProps.opacity = 1.0;
+            nodeProps.shape = "Ball";
+            // nodeProps.imageUrl = document.getElementById('nodeImageUrl').value;
+            // nodeProps.notes = document.getElementById('nodeNotes').value;
+            // nodeProps.pageUrl = document.getElementById('nodePageUrl').value;
+            nodeProps.size = 5.0;
+
+            nodeProps.location = {};
+
+            nodeProps.location.x = column * 0.1;
+            nodeProps.location.y = row * -0.1;
+            nodeProps.location.z = 0.0;
+
+            nodeProps.location.relativeTo = "Window";
+            nodeProps.selected = false;
+            nodeProps.collapsed = false;
+
+            return nodeProps;
+        }
+
+        async function createGridLinks() {
+
+            try {
+                var props = gridLinkProps();
+                const link = await window.noda.createLink(props);
+                statusSuccess("Created Grid Link: " + link.uuid);
+
+            } catch (error) {
+                statusError("Node create error: " + error);
+            }
+        }
+
+        function gridLinkProps() {
+            var linkProps = {};
+
+            linkProps.uuid = "test_link";
+            linkProps.fromUuid = "node_grid_c1_r1";
+            linkProps.toUuid = "node_grid_c2_r2";
+
+            // linkProps.title = document.getElementById('linkTitle').value;
+            linkProps.color = "4CAF50";
+            linkProps.shape = "Solid";
+            linkProps.size = 9.0;
+
+            // linkProps.selected = document.getElementById('linkSelected').checked;
+
+            return linkProps;
+        }
+
+        async function getNodeFromUuid(uuid) {
+            try {
+                var props = {};
+                props.uuid = uuid;
+                const result = await window.noda.listNodes(props);
+                return result.nodes[0];
+
+            } catch(error) {
+                statusError("Getting node error: " + error);
+            }
+        }
+
+        async function getLinkFromUuid(uuid) {
+            try {
+                var props = {};
+                props.uuid = uuid;
+                const result = await window.noda.listLinks(props);
+                return result.links[0];
+
+            } catch(error) {
+                statusError("Getting link error: " + error);
+            }
+        }
+
+        async function highlightDependancyChain() {
+            const selectedNodes = await listSelectedNodes();
+
+            for (var i = 0; i < selectedNodes.length; i++) {
+                await highlightDependancies(selectedNodes[i]);
+            }
+        }
+
+        async function highlightNode(node) {
+            try {
+                var rollback = {};
+                rollback.uuid = node.uuid;
+                rollback.color = node.color;
+                rollbackProps.nodes.push(rollback);
+                node.color = highlightColor;
+                const updatedNode = await window.noda.updateNode(node);
+                statusSuccess("Node Highlighted: " + updatedNode.uuid);
+
+            } catch (error) {
+                statusError("Node highlight error: " + error);
+            }
+        }
+
+        async function highlightLink(link) {
+            try {
+                var rollback = {};
+                rollback.uuid = link.uuid;
+                rollback.color = link.color;
+                rollbackProps.links.push(rollback);
+                link.color = highlightColor;
+                const updatedLink = await window.noda.updateLink(link);
+                statusSuccess("Link Highlighted: " + updatedLink.uuid);
+
+            } catch (error) {
+                statusError("Link highlight error: " + error);
+            }
+        }
+
+        async function listLinks(props) {
+            try {
+                const linksResult = await window.noda.listLinks(props);
+                return linksResult.links;
+
+            } catch (error) {
+                statusError("List links error: " + error);
+            }
+        }
+
+        async function listNodes(props) {
+            try {
+                const nodesResult = await window.noda.listNodes(props);
+                return nodesResult.nodes;
+
+            } catch (error) {
+                statusError("List nodes error: " + error);
+            }
+        }
+
+        async function listSelectedNodes() {
+            try {
+                var selectedNodeProps = {};
+                selectedNodeProps.selected = true;
+                const nodesResult = await window.noda.listNodes(selectedNodeProps);
+                return nodesResult.nodes;
+
+            } catch (error) {
+                statusError("List nodes error: " + error);
+            }
+        }
+
+        async function highlightDependancies(node) {
+            var linkProps = {};
+            linkProps.fromUuid = node.uuid;
+            await highlightNode(node);
+            const outwardLinks = await listLinks(linkProps);
+
+            for (var j = 0; j < outwardLinks.length; j++) {
+                var linkProps = outwardLinks[j];
+                await highlightLink(linkProps);
+                const toNode = await getNodeFromUuid(linkProps.toUuid);
+                await highlightDependancies(toNode);
+            }
+        }
+
+        async function updateNodeWithProps(props) {
+            try {
+                const result = await window.noda.updateNode(props);
+            } catch (error) {
+                statusError("Update node error: " + error);
+            }
+        }
+
+        async function updateLinkWithProps(props) {
+            try {
+                const result = await window.noda.updateLink(props);
+            } catch (error) {
+                statusError("Update link error: " + error);
+            }
+        }
+
+        async function rollback() {
+            for (i = 0; i < rollbackProps.nodes.length; i++) {
+                const nodeProps = rollbackProps.nodes[i];
+                await updateNodeWithProps(nodeProps);
+            }
+
+            for (j = 0; j < rollbackProps.links.length; j++) {
+                const linkProps = rollbackProps.links[i];
+                await updateLinkWithProps(linkProps);
+            }
+
+            rollbackProps.nodes = [];
+            rollbackProps.links = [];
+        }
+
     </script>
 
     <style>
@@ -325,7 +544,13 @@
 <body>
     <h1>Noda Web API Test (User: <span id="userId"></span>)</h1>
 
-    <div class="container-fluid">
+    <div>
+        <input type="button" value="Create Node Grid" onclick="createNodeGrid()" />
+        <input type="button" value="Create Grid Link" onclick="createGridLinks()" />
+        <input type="button" value="Highlight Dependancy Chain" onclick="highlightDependancyChain()" />
+        <input type="button" value="Rollback" onclick="rollback()" />
+    </div>
+    <div class="container-fluid"></div>
         <div class="row">
             <div class="col-6">
 
