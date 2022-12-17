@@ -1,5 +1,3 @@
-import noda from 'https://noda.io/api/includes/noda.js';
-
 
 var statusElement;
 var statusMessageElement;
@@ -419,7 +417,7 @@ async function highlightLink(link) {
     }
 }
 
-async function listLinks(props) {
+async function listLinksWithProps(props) {
     try {
         const linksResult = await window.noda.listLinks(props);
         return linksResult.links;
@@ -429,7 +427,7 @@ async function listLinks(props) {
     }
 }
 
-async function listNodes(props) {
+async function listNodesWithProps(props) {
     try {
         const nodesResult = await window.noda.listNodes(props);
         return nodesResult.nodes;
@@ -455,7 +453,7 @@ async function highlightDependancies(node) {
     var linkProps = {};
     linkProps.fromUuid = node.uuid;
     await highlightNode(node);
-    const outwardLinks = await listLinks(linkProps);
+    const outwardLinks = await listLinksWithProps(linkProps);
 
     for (var j = 0; j < outwardLinks.length; j++) {
         var linkProps = outwardLinks[j];
@@ -496,13 +494,149 @@ async function rollback() {
     rollbackProps.links = [];
 }
 
-function traverse(node) {
-    for (var i in node) {
-        if (!!node[i] && typeof(node[i])=="object") {
-            console.log(i, node[i]);
-            traverse(node[i]);
+// AST Traversing
+
+var depth = 0;
+var index = 0;
+var fromNode;
+
+async function traverse(node, key) {
+
+    const nodaNode = await createNodeFromJSONNode(node, depth, index);
+
+    if (fromNode != null) {
+        // createLink fromNode.uuid
+        const link = await createJSONLink(fromNode, nodaNode, key);
+    }
+
+    for (var key in node) {
+        const subNode = node[key];
+
+        if (subNode != null && typeof(subNode) == "object") {
+            depth++;
+            index = 0;
+            fromNode = nodaNode;
+            traverse(subNode, key);
         } else {
-            console.log(i, node[i]);
+            index++;
         }
+    }
+}
+
+function loadAST() {
+    fetch('./ast.json')
+    .then((response) => response.json())
+    .then((json) => {
+        traverse(json, null);
+        // console.log(json);
+        depth = 0;
+        index = 0;
+        fromNode = null;
+    });
+}
+
+function nodePropsFromJSONNode(jsonNode, depth, index) {
+
+    if (subNode == null) {
+        return nodePropsFromNull(jsonNode, depth, index);
+    } else if (typeof(subNode) == "object") {
+        return nodePropsFromObject(jsonNode, depth, index);
+    } else if (typeof(subNode) == "string") {
+        return nodePropsFromString(jsonNode, depth, index);
+    } else if (typeof(subNode) == "number") {
+        return nodePropsFromNumber(jsonNode, depth, index);
+    } else if (typeof(subNode) == "boolean") {
+        return nodePropsFromBool(jsonNode, depth, index);
+    }
+}
+
+function nodePropsFromObject(jsonNode, depth, index) {
+    var nodeProps = defaultJSONNodeProps();
+    nodeProps.title = "Object";
+    nodeProps.location = locationFor(depth, index);
+    return nodeProps;
+}
+
+function nodePropsFromString(jsonNode, depth, index) {
+    var nodeProps = defaultJSONNodeProps();
+    nodeProps.title = jsonNode;
+    nodeProps.location = locationFor(depth, index);
+    return nodeProps;
+}
+
+function nodePropsFromNumber(jsonNode, depth, index) {
+    var nodeProps = defaultJSONNodeProps();
+    nodeProps.title = jsonNode;
+    nodeProps.location = locationFor(depth, index);
+    return nodeProps;
+}
+
+function nodePropsFromBool(jsonNode, depth, index) {
+    var nodeProps = defaultJSONNodeProps();
+    nodeProps.title = jsonNode;
+    nodeProps.location = locationFor(depth, index);
+    return nodeProps;
+}
+
+function nodePropsFromNull(jsonNode, depth, index) {
+    var nodeProps = defaultJSONNodeProps();
+    nodeProps.title = "NULL";
+    nodeProps.location = locationFor(depth, index);
+    return nodeProps;
+}
+
+function defaultJSONNodeProps() {
+    var nodeProps = {};
+    nodeProps.color = "4CAF50";
+    nodeProps.opacity = 1.0;
+    nodeProps.shape = "Ball";
+    nodeProps.size = 5.0;
+    nodeProps.location.relativeTo = "Window";
+    nodeProps.selected = false;
+    nodeProps.collapsed = false;
+    return nodeProps;
+}
+
+function locationFor(depth, index) {
+    var location = {};
+    location.x = index * 0.1;
+    location.y = depth * -0.1;
+    location.z = 0.0;
+    return location;
+}
+
+async function createJSONLink(fromNode, toNode, index) {
+
+    try {
+        var props = jsonNodeLinkProps(fromNode, toNode, index);
+        const link = await window.noda.createLink(props);
+        // statusSuccess("Created Grid Link: " + link.uuid);
+        return link;
+
+    } catch (error) {
+        statusError("Node create error: " + error);
+    }
+}
+
+function jsonNodeLinkProps(fromNode, toNode, index) {
+    var linkProps = {};
+    linkProps.title = index;
+    linkProps.fromUuid = fromNode.uuid;
+    linkProps.toUuid = toNode.uuid;
+    linkProps.color = "4CAF50";
+    linkProps.shape = "Solid";
+    linkProps.size = 1.0;
+    return linkProps;
+}
+
+async function createNodeFromJSONNode(jsonNode, depth, index) {
+    try {
+        var props = nodePropsFromJSONNode(jsonNode, depth, index);
+        const node = await window.noda.createNode(props);
+        // statusSuccess("Created Node Grid: " + node.uuid);
+        return node;
+
+    } catch (error) {
+        statusError("Node create error: " + error);
     }
 }
