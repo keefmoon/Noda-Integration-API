@@ -537,15 +537,15 @@ function loadAST() {
 
 function nodePropsFromJSONNode(jsonNode, depth, index) {
 
-    if (subNode == null) {
+    if (jsonNode == null) {
         return nodePropsFromNull(jsonNode, depth, index);
-    } else if (typeof(subNode) == "object") {
+    } else if (typeof(jsonNode) == "object") {
         return nodePropsFromObject(jsonNode, depth, index);
-    } else if (typeof(subNode) == "string") {
+    } else if (typeof(jsonNode) == "string") {
         return nodePropsFromString(jsonNode, depth, index);
-    } else if (typeof(subNode) == "number") {
+    } else if (typeof(jsonNode) == "number") {
         return nodePropsFromNumber(jsonNode, depth, index);
-    } else if (typeof(subNode) == "boolean") {
+    } else if (typeof(jsonNode) == "boolean") {
         return nodePropsFromBool(jsonNode, depth, index);
     }
 }
@@ -591,9 +591,8 @@ function defaultJSONNodeProps() {
     nodeProps.opacity = 1.0;
     nodeProps.shape = "Ball";
     nodeProps.size = 5.0;
-    nodeProps.location.relativeTo = "Window";
     nodeProps.selected = false;
-    nodeProps.collapsed = false;
+    nodeProps.collapsed = true;
     return nodeProps;
 }
 
@@ -602,6 +601,7 @@ function locationFor(depth, index) {
     location.x = index * 0.1;
     location.y = depth * -0.1;
     location.z = 0.0;
+    location.relativeTo = "Window";
     return location;
 }
 
